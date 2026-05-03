@@ -1,0 +1,16 @@
+.env
+.env.local
+.env.*.local
+token.json
+credentials.json
+*.token
+*.credentials
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+node_modules/
+__pycache__/
+*.pyc
+.venv/
