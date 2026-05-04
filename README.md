@@ -75,9 +75,9 @@ For Claude Web Routine, set variables in **Settings → Routine → Environment*
 
 ---
 
-## Skill 2 — Calendar-Event-Check
+## Skill 2 — Calendar-Slack-Notify
 
-Checks Google Calendar for tomorrow's events and sends a LINE notification if any are found. If no events exist, the skill exits silently.
+Checks Google Calendar for events today and tomorrow, then sends a Slack notification with a summary if any events are found. If no events exist, the routine exits silently.
 
 See the [skill instructions](.claude/skills/Calendar-Event-Check/skill.md) for the full execution flow.
 
@@ -88,17 +88,10 @@ See the [skill instructions](.claude/skills/Calendar-Event-Check/skill.md) for t
 | Requirement | Details |
 |-------------|--------|
 | Claude account | claude.ai with Routine (scheduled tasks) access |
-| GitHub connector | Connected — used for liveness check at startup |
 | Google Calendar connector | Connected — reads calendar events via MCP (no OAuth credentials needed) |
-| LINE Messaging API | Optional — skip LINE step if absent |
+| Slack connector | Connected — sends messages to #daily-reminders channel |
 
-#### 1. Connect the GitHub Connector
-
-1. **claude.ai → Settings → Connectors → Add connector → GitHub**
-2. Authorise access to this repository.
-3. Confirm **Connected** status.
-
-#### 2. Connect the Google Calendar Connector
+#### 1. Connect the Google Calendar Connector
 
 1. **claude.ai → Settings → Connectors → Add connector → Google Calendar**
 2. Sign in with the Google account whose calendar you want to check.
@@ -107,25 +100,27 @@ See the [skill instructions](.claude/skills/Calendar-Event-Check/skill.md) for t
 > No Google Cloud project, no OAuth credentials, no refresh token needed.  
 > Authentication is handled entirely by the connector.
 
+#### 2. Connect the Slack Connector
+
+1. **claude.ai → Settings → Connectors → Add connector → Slack**
+2. Authorise Claude to access your Slack workspace.
+3. Confirm **Connected** status.
+
 #### 3. Set Environment Variables
 
 For Claude Web Routine, set variables in **Settings → Routine → Environment**:
 
 | Variable | Required | Value |
 |----------|----------|-------|
-| `GITHUB_REPO_OWNER` | Yes | Your GitHub username or organisation name |
-| `GITHUB_REPO_NAME` | Yes | `claude-routine-guideline-update` (or your fork name) |
 | `GOOGLE_CALENDAR_ID` | No | Calendar ID — leave blank to use `primary` |
-| `LINE_CHANNEL_ACCESS_TOKEN` | No | LINE Messaging API long-lived channel access token |
-| `LINE_TO` | No | LINE User ID (`U...`) or Group ID (`C...`) |
 
 For local development, copy `env.example` → `.env` and fill in values. **Never commit `.env`.**
 
 #### 4. Create the Routine
 
 1. **Routines → New Routine**
-2. Set **Skill**: `Calendar-Event-Check`
-3. Set **Schedule**: `0 21 * * *` (21:00 nightly — checks next day's events each evening)
+2. Set **Skill**: `Calendar-Slack-Notify`
+3. Set **Schedule**: `0 8 * * *` (08:00 each morning — checks today and tomorrow's events)
 4. Set **Timezone**: `Asia/Bangkok`
 5. Save and enable.
 
@@ -133,27 +128,27 @@ Suggested schedules:
 
 | Use case | Cron | Bangkok time |
 |----------|------|--------------|
-| Evening reminder (recommended) | `0 21 * * *` | Every day 21:00 |
-| Morning check | `0 6 * * *` | Every day 06:00 |
-| Weekdays only | `0 21 * * 1-5` | Mon–Fri 21:00 |
+| Morning reminder (recommended) | `0 8 * * *` | Every day 08:00 |
+| Evening reminder | `0 21 * * *` | Every day 21:00 |
+| Weekdays only | `0 8 * * 1-5` | Mon–Fri 08:00 |
 
 #### 5. Verify a Test Run
 
 1. Trigger a manual run from the Routine dashboard.
-2. If events exist for tomorrow → LINE message arrives within seconds.
-3. If no events → skill completes silently; check run log for `[INFO] No events tomorrow`.
-4. Any `[ERROR]` lines in the run log indicate connector or LINE issues.
+2. If events exist → Slack message arrives in #daily-reminders within seconds.
+3. If no events → routine completes silently; check run log for `[INFO] No events found`.
+4. Any `[ERROR]` lines in the run log indicate connector issues.
 
-#### 6. Skill Guardrails
+#### 6. Routine Guardrails
 
 | Guardrail | Behaviour |
 |-----------|-----------|
-| No Bash / shell / git CLI | MCP connectors + WebFetch only |
-| GitHub connector unavailable | Abort run; log timestamped error |
-| Google Calendar connector unavailable | Abort run; log timestamped error |
-| `LINE_*` env vars absent | Skip LINE step; skill completes normally |
-| LINE API HTTP non-200 | Log error (status + body); no silent retry |
-| No events tomorrow | Exit quietly; no LINE message sent |
+| No Bash / shell / git CLI | Google Calendar + Slack connectors only |
+| Google Calendar connector unavailable | Abort immediately; log error; do not send Slack |
+| Slack connector unavailable | Abort; log error |
+| No events found (both days) | Exit quietly; no Slack message sent |
+| Events found | Send Slack notification with summary to #daily-reminders |
+| More than 10 events per day | Show first 10, append "... และอีก <K> รายการ" |
 
 ---
 
